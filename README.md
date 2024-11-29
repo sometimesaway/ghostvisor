@@ -1,4 +1,4 @@
-# ghostVisor
+# ghostvisor
 
 Minimal arm64 type-1 hypervisor with async trap handling and dynamic hook support.
 
