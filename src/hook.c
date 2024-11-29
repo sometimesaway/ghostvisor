@@ -3,11 +3,44 @@
 #include <string.h>
 #include "hook.h"
 #include "util.h"
+#include <dlfcn.h>
 
 static int hook_initialized = 0;
 static hook_handler_t *syscall_handlers = NULL;
 static hook_handler_t *memory_handlers = NULL;
 static hook_handler_t *exception_handlers = NULL;
+
+static void *load_dynamic_library(const char *lib_path) {
+    void *handle = dlopen(lib_path, RTLD_LAZY);
+    if (!handle) {
+        log_error("Failed to load library: %s", dlerror());
+    }
+    return handle;
+}
+
+static hook_handler_func_t load_handler_function(void *lib_handle, const char *func_name) {
+    dlerror(); 
+    hook_handler_func_t handler = (hook_handler_func_t)dlsym(lib_handle, func_name);
+    const char *dlsym_error = dlerror();
+    if (dlsym_error) {
+        log_error("Failed to load handler function: %s", dlsym_error);
+        return NULL;
+    }
+    return handler;
+}
+
+int register_dynamic_hook(const char *lib_path, const char *func_name, hook_type_t type, uint64_t id, uint64_t region_start, uint64_t region_end) {
+    void *lib_handle = load_dynamic_library(lib_path);
+    if (!lib_handle) return -1;
+
+    hook_handler_func_t handler = load_handler_function(lib_handle, func_name);
+    if (!handler) {
+        dlclose(lib_handle);
+        return -1;
+    }
+
+    return register_hook(type, id, region_start, region_end, handler);
+}
 
 int hook_init(void) {
     if (hook_initialized) {
